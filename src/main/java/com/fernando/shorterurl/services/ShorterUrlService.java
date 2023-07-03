@@ -5,8 +5,12 @@ import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
+import java.util.Optional;
+import org.springframework.beans.BeanUtils;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -22,7 +26,7 @@ public class ShorterUrlService {
 
   private final ShortedUrlRepository shortedUrlRepository;
 
-  private static final String CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+";
+  private static final String CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
   public String generateUniqueId() {
     SecureRandom random = new SecureRandom();
@@ -52,15 +56,28 @@ public class ShorterUrlService {
     return ResponseEntity.status(HttpStatus.CREATED).body(shortedUrlRepository.save(shortedUrl));
   }
 
-  public ResponseEntity<Page<ShortedUrl>> findAllShortedUrls(Integer page, Integer limit, String sortBy,
+  public ResponseEntity<Object> findAllShortedUrls(Integer page, Integer limit, String sortBy,
       Boolean sortDesc) {
-    // RETURN SHORTED URL LIST
-    return null;
+    Sort.Direction sortDirection = sortDesc ? Sort.Direction.DESC : Sort.Direction.ASC;
+    Pageable pagination = PageRequest.of(page, limit, Sort.by(sortDirection, sortBy));
+
+    Page<ShortedUrl> shortedUrlsPage = shortedUrlRepository.findAll(pagination);
+
+    return ResponseEntity.status(HttpStatus.OK).body(shortedUrlsPage);
   }
 
-  public ResponseEntity<Object> redirect(UUID shortedUrlId) {
-    // REDIRECT TO ORIGINAL URL
-    return null;
+  public ResponseEntity<Object> redirect(String shortedUrlId) {
+    Optional<ShortedUrl> optionalShortedUrl = shortedUrlRepository.findByResourceId(shortedUrlId);
+    if (optionalShortedUrl.isPresent()) {
+      ShortedUrl shortedUrl = new ShortedUrl();
+      BeanUtils.copyProperties(optionalShortedUrl.get(), shortedUrl);
+
+      shortedUrl.setClicks(shortedUrl.getClicks() + 1);
+
+      shortedUrlRepository.save(shortedUrl);
+      return ResponseEntity.status(HttpStatus.OK).body(shortedUrl);
+    }
+    return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Url not found!");
   }
 
 }
